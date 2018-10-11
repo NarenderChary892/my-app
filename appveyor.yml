@@ -23,11 +23,7 @@ test_script:
   - npm --version
   # run tests
   - npm test
-
-# Don't actually build.
-build: off
-
-test_script:
+  
   - ps: |
       Add-AppveyorTest -Name "PsScriptAnalyzer" -Outcome Running
       $Results = Invoke-ScriptAnalyzer -Path $pwd -Recurse -Severity Error -ErrorAction SilentlyContinue
@@ -44,3 +40,9 @@ test_script:
       Else {
         Update-AppveyorTest -Name "PsScriptAnalyzer" -Outcome Passed
       }
+
+  
+
+# Don't actually build.
+build: off
+
