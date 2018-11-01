@@ -1,32 +1,73 @@
 
-branches:
-  only:
-   - master
+- ## COMMIT BUILD ##
+  branches:
+    only:
+      - master # Build Pull Requests on master
+     
+  image: Visual Studio 2015
+  force_https_clone: true
+  clone_depth: 1
+  version: '0.0.{build}'
+
+  skip_tags: false
+  skip_non_tags: false
+
+  environment:
+    nodejs_version: "8"
+    ConfigitNuGetPassword:
+    secure: izpoVw2TicdHmyR345magw==
+  
+# add required nuget references
+  before_build:
+  # add reference for Configit Nuget Server
+  - ps: nuget sources add -Name Configit -Source http://nuget.configit.com/nuget/Configit -UserName $Env:NPM_USER_NAME -Password $Env:NPM_USER_PASSWORD
+
+
+  cache:
+    - node_modules
+    - '%APPDATA%\npm-cache'
+
+  # Install scripts. (runs after repo cloning)
+  install:
+    # Get the latest stable version of Node.js or io.js
+    - ps: Install-Product node $env:nodejs_version
+    - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/install-nuget-3-3-0.ps1'))
+    #- ps: nuget sources add -Name Configit -Source http://nuget.configit.com/nuget/Configit -UserName $Env:NPM_USER_NAME -Password $Env:NPM_USER_PASSWORD
+    # Set npm credentials
+    - npm set @configit:registry http://nuget.configit.com/npm/npm
+    - npm set //nuget.configit.com/npm/:_password="${NPM_USER_PASSWORD}"
+    - npm set //nuget.configit.com/npm/:username=${NPM_USER_NAME}
+    - npm set //nuget.configit.com/npm/:email=${NPM_USER_EMAIL}
+    - npm set //nuget.configit.com/npm/:always-auth=true
+    
+
+    # install modules
+    - npm install --loglevel error
  
+  build_script:
+    - npm run build
+
   
+  artifacts:
+    - path: $(APPVEYOR_PROJECT_NAME)-$(APPVEYOR_REPO_TAG_NAME).zip
+      name: $(APPVEYOR_PROJECT_NAME)
 
-# Test against the latest version of this Node.js version
-environment:
-  nodejs_version: "7"
+  # Post-install test scripts.
+  test_script:
+    # Output useful info for debugging.
+    - node --version
+    - npm --version
+    # run tests
+    - npm test -- --reporter mocha-appveyor-reporter
 
-# Install scripts. (runs after repo cloning)
-install:
-  # Get the latest stable version of Node.js or io.js
-  - ps: Install-Product node $env:nodejs_version
-  # install modules
-  - npm install
-
-# Post-install test scripts.
-test_script:
-  # Output useful info for debugging.
-  - node --version
-  - npm --version
-  # run tests
-  - npm test
-  
- 
-  
-
-# Don't actually build.
-build: off
-
+  deploy:
+    provider: "GitHub"
+    release: $(APPVEYOR_REPO_TAG_NAME)
+    description: 'See [Changelog]($(CHANGELOG_LINK)) for details'
+    artifact: $(APPVEYOR_PROJECT_NAME)-$(APPVEYOR_REPO_TAG_NAME).zip
+    draft: true
+    prerelease: $(IS_PRELEASE)
+    auth_token: $(GITHUB_AUTH_TOKEN)
+    on:
+      appveyor_repo_tag: true        # deploy only on tag push
+      is_release_tag: true           # deploy only if tag matches release
